@@ -301,6 +301,26 @@ def analyze_trends(notes: list[dict]) -> list[dict]:
 # 报告生成
 # ============================================================
 
+def estimate_tokens(notes: list[dict]) -> dict:
+    """估算 token 消耗（中文约 1.5 字符/token，英文约 4 字符/token）"""
+    total_chars = 0
+    for note in notes:
+        total_chars += len(note.get("title", ""))
+        total_chars += len(note.get("content", ""))
+        for c in note.get("comments", []):
+            total_chars += len(c.get("content", ""))
+    # 中文为主，按 1.5 字符/token 估算
+    estimated_input = int(total_chars / 1.5)
+    # 报告输出约为输入的 30%
+    estimated_output = int(estimated_input * 0.3)
+    return {
+        "total_chars": total_chars,
+        "estimated_input_tokens": estimated_input,
+        "estimated_output_tokens": estimated_output,
+        "estimated_total_tokens": estimated_input + estimated_output,
+    }
+
+
 def generate_report(notes: list[dict], competitors: list[str]) -> dict:
     return {
         "summary": {
@@ -314,6 +334,7 @@ def generate_report(notes: list[dict], competitors: list[str]) -> dict:
         "topics": analyze_topics(notes),
         "competitors": analyze_competitors(notes, competitors),
         "trends": analyze_trends(notes),
+        "token_usage": estimate_tokens(notes),
     }
 
 
@@ -405,6 +426,18 @@ def report_to_markdown(report: dict, brand: str = "品牌") -> str:
 
     lines += ["", f"## {sec.next('风险预警与建议')}", "",
               "*由 Claude 基于以上数据撰写。*"]
+
+    # ---- Token 消耗 ----
+    tk = report.get("token_usage", {})
+    if tk:
+        lines += [
+            "",
+            "---",
+            f"> 本次分析处理 **{tk['total_chars']:,}** 字符，"
+            f"预估消耗 **{tk['estimated_total_tokens']:,}** tokens"
+            f"（输入 ~{tk['estimated_input_tokens']:,} / 输出 ~{tk['estimated_output_tokens']:,}）",
+        ]
+
     return "\n".join(lines)
 
 
@@ -551,9 +584,24 @@ def report_to_lark_markdown(report: dict, brand: str = "品牌") -> str:
         f"## {sec.next('风险预警与建议')}",
         "",
         f'<callout emoji="🔔" background-color="light-yellow">',
-        "*由 Claude 基于以上数据撰写，请结合实际业务判断。*",
+        "**以下分析由 Claude 基于以上数据自动生成，请结合实际业务判断。**",
         "</callout>",
     ]
+
+    # ---- Token 消耗 ----
+    tk = report.get("token_usage", {})
+    if tk:
+        lines += [
+            "",
+            "---",
+            "",
+            f'<callout emoji="🔢" background-color="pale-gray">',
+            f"**本次分析资源消耗**：处理 {tk['total_chars']:,} 字符，"
+            f"预估消耗 {tk['estimated_total_tokens']:,} tokens"
+            f"（输入 ~{tk['estimated_input_tokens']:,} / 输出 ~{tk['estimated_output_tokens']:,}）",
+            "</callout>",
+        ]
+
     return "\n".join(lines)
 
 
