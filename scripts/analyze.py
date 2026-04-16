@@ -137,12 +137,21 @@ def sentiment(text: str) -> str:
 # ============================================================
 
 def analyze_sentiment(notes: list[dict]) -> dict:
-    """情感分析：笔记 + 评论"""
+    """情感分析：笔记 + 评论
+
+    笔记情感：优先使用 note["sentiment"]（由主模型预标注），缺失时回退关键词。
+    评论情感：始终使用关键词规则（量大，无需 AI）。
+    """
     results: dict[str, list] = {"正面": [], "负面": [], "中性": []}
     comment_sentiments: Counter = Counter()
 
     for note in notes:
-        s = sentiment(note.get("content", "") + " " + note.get("title", ""))
+        # 优先用 AI 预标注，回退关键词
+        s = note.get("sentiment") or sentiment(
+            note.get("content", "") + " " + note.get("title", "")
+        )
+        # 容错：统一为标准标签
+        s = {"正面": "正面", "负面": "负面", "中性": "中性"}.get(s, "中性")
         results[s].append({
             "title": note.get("title", ""),
             "url": note.get("url", ""),
